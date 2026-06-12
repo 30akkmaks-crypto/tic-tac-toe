@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head><title>Tic-Tac-Toe - JS</title><style>canvas{border:1px solid #ccc;}</style></head>
+<body>
+<canvas id="canvas" width="300" height="350"></canvas>
+<div>Score: X <span id="scoreX">0</span> | O <span id="scoreO">0</span> | Draw <span id="scoreDraw">0</span></div>
+<button id="reset">Reset Game</button>
+<button id="mode">Switch Mode (AI/2P)</button>
+<script src="tictactoe.js"></script>
+</body>
+</html>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const CELL = 100;
+let board = [['','',''],['','',''],['','','']];
+let current = 'X';
+let vsAI = true;
+let gameOver = false;
+let scores = {X:0, O:0, draw:0};
+
+canvas.addEventListener('click', (e) => {
+    if(gameOver) return;
+    let rect = canvas.getBoundingClientRect();
+    let x = Math.floor((e.clientX-rect.left)/CELL);
+    let y = Math.floor((e.clientY-rect.top)/CELL);
+    if(x>=0 && x<3 && y>=0 && y<3 && board[y][x]==='') {
+        if(!vsAI || (vsAI && current==='X')) {
+            makeMove(y,x);
+        }
+    }
+});
+
+function makeMove(row,col){
+    board[row][col] = current;
+    draw();
+    let winner = checkWinner();
+    if(winner){
+        gameOver=true;
+        scores[winner]++;
+        updateScores();
+        draw();
+        alert(`${winner} wins!`);
+        return;
+    }
+    if(isDraw()){
+        gameOver=true;
+        scores.draw++;
+        updateScores();
+        draw();
+        alert("Draw!");
+        return;
+    }
+    current = current==='X' ? 'O' : 'X';
+    if(vsAI && current==='O' && !gameOver){
+        setTimeout(aiMove, 200);
+    }
+}
+
+function aiMove(){
+    if(gameOver) return;
+    for(let i=0;i<3;i++)
+        for(let j=0;j<3;j++)
+            if(board[i][j]===''){
+                makeMove(i,j);
+                return;
+            }
+}
+
+function checkWinner(){
+    for(let i=0;i<3;i++){
+        if(board[i][0] && board[i][0]===board[i][1] && board[i][1]===board[i][2]) return board[i][0];
+        if(board[0][i] && board[0][i]===board[1][i] && board[1][i]===board[2][i]) return board[0][i];
+    }
+    if(board[0][0] && board[0][0]===board[1][1] && board[1][1]===board[2][2]) return board[0][0];
+    if(board[0][2] && board[0][2]===board[1][1] && board[1][1]===board[2][0]) return board[0][2];
+    return null;
+}
+
+function isDraw(){
+    for(let i=0;i<3;i++) for(let j=0;j<3;j++) if(board[i][j]==='') return false;
+    return true;
+}
+
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle='#333';
+    for(let i=1;i<3;i++){
+        ctx.beginPath();
+        ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,300); ctx.stroke();
+        ctx.moveTo(0,i*CELL); ctx.lineTo(300,i*CELL); ctx.stroke();
+    }
+    for(let i=0;i<3;i++){
+        for(let j=0;j<3;j++){
+            if(board[i][j]){
+                ctx.font='bold 40px monospace';
+                ctx.fillStyle = board[i][j]==='X' ? 'red' : 'blue';
+                ctx.fillText(board[i][j], j*CELL+35, i*CELL+65);
+            }
+        }
+    }
+}
+function updateScores(){
+    document.getElementById('scoreX').innerText = scores.X;
+    document.getElementById('scoreO').innerText = scores.O;
+    document.getElementById('scoreDraw').innerText = scores.draw;
+}
+function resetGame(){
+    board = [['','',''],['','',''],['','','']];
+    current = 'X';
+    gameOver = false;
+    draw();
+}
+document.getElementById('reset').onclick = () => { resetGame(); };
+document.getElementById('mode').onclick = () => { vsAI = !vsAI; resetGame(); };
+resetGame();
