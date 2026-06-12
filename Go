@@ -1,0 +1,208 @@
+package main
+
+import (
+    "image/color"
+    "log"
+    "math"
+    "github.com/hajimehoshi/ebiten/v2"
+    "github.com/hajimehoshi/ebiten/v2/inpututil"
+)
+
+const (
+    cellSize = 100
+    screenW  = 300
+    screenH  = 400
+)
+
+type Game struct {
+    board        [3][3]string
+    current      string
+    vsAI         bool
+    gameOver     bool
+    winner       string
+    scoreX       int
+    scoreO       int
+    scoreDraw    int
+}
+
+func NewGame() *Game {
+    g := &Game{current: "X", vsAI: true}
+    g.resetBoard()
+    return g
+}
+
+func (g *Game) resetBoard() {
+    g.board = [3][3]string{}
+    g.current = "X"
+    g.gameOver = false
+    g.winner = ""
+}
+
+func (g *Game) Update() error {
+    if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+        x, y := ebiten.CursorPosition()
+        row := y / cellSize
+        col := x / cellSize
+        if row >= 0 && row < 3 && col >= 0 && col < 3 && !g.gameOver && g.board[row][col] == "" {
+            if !g.vsAI || (g.vsAI && g.current == "X") {
+                g.board[row][col] = g.current
+                g.checkGameOver()
+                if !g.gameOver {
+                    g.current = "O"
+                    if g.vsAI && g.current == "O" && !g.gameOver {
+                        g.aiMove()
+                    }
+                }
+            }
+        }
+    }
+    // перезапуск по R
+    if inpututil.IsKeyJustPressed(ebiten.KeyR) {
+        g.resetBoard()
+    }
+    // переключение режима по M
+    if inpututil.IsKeyJustPressed(ebiten.KeyM) {
+        g.vsAI = !g.vsAI
+        g.resetBoard()
+    }
+    return nil
+}
+
+func (g *Game) aiMove() {
+    bestScore := -math.MaxFloat64
+    bestRow, bestCol := -1, -1
+    for i := 0; i < 3; i++ {
+        for j := 0; j < 3; j++ {
+            if g.board[i][j] == "" {
+                g.board[i][j] = "O"
+                score := g.minimax(g.board, 0, false)
+                g.board[i][j] = ""
+                if score > bestScore {
+                    bestScore = score
+                    bestRow, bestCol = i, j
+                }
+            }
+        }
+    }
+    if bestRow != -1 {
+        g.board[bestRow][bestCol] = "O"
+        g.checkGameOver()
+        if !g.gameOver {
+            g.current = "X"
+        }
+    }
+}
+
+func (g *Game) minimax(board [3][3]string, depth int, isMaximizing) float64 {
+    winner := g.checkWinnerOnBoard(board)
+    if winner == "O" { return 1 }
+    if winner == "X" { return -1 }
+    if g.isDrawOnBoard(board) { return 0 }
+    if isMaximizing {
+        best := -math.MaxFloat64
+        for i:=0;i<3;i++{
+            for j:=0;j<3;j++{
+                if board[i][j] == "" {
+                    board[i][j] = "O"
+                    best = math.Max(best, g.minimax(board, depth+1, false))
+                    board[i][j] = ""
+                }
+            }
+        }
+        return best
+    } else {
+        best := math.MaxFloat64
+        for i:=0;i<3;i++{
+            for j:=0;j<3;j++{
+                if board[i][j] == "" {
+                    board[i][j] = "X"
+                    best = math.Min(best, g.minimax(board, depth+1, true))
+                    board[i][j] = ""
+                }
+            }
+        }
+        return best
+    }
+}
+
+func (g *Game) checkWinnerOnBoard(board [3][3]string) string {
+    // строки, столбцы, диагонали
+    for i:=0;i<3;i++{
+        if board[i][0] != "" && board[i][0]==board[i][1] && board[i][1]==board[i][2] {
+            return board[i][0]
+        }
+        if board[0][i] != "" && board[0][i]==board[1][i] && board[1][i]==board[2][i] {
+            return board[0][i]
+        }
+    }
+    if board[0][0]!="" && board[0][0]==board[1][1] && board[1][1]==board[2][2] {
+        return board[0][0]
+    }
+    if board[0][2]!="" && board[0][2]==board[1][1] && board[1][1]==board[2][0] {
+        return board[0][2]
+    }
+    return ""
+}
+
+func (g *Game) isDrawOnBoard(board [3][3]string) bool {
+    for i:=0;i<3;i++{
+        for j:=0;j<3;j++{
+            if board[i][j]=="" { return false }
+        }
+    }
+    return true
+}
+
+func (g *Game) checkGameOver() {
+    w := g.checkWinnerOnBoard(g.board)
+    if w != "" {
+        g.gameOver = true
+        g.winner = w
+        if w=="X" { g.scoreX++ } else { g.scoreO++ }
+    } else if g.isDrawOnBoard(g.board) {
+        g.gameOver = true
+        g.winner = "draw"
+        g.scoreDraw++
+    }
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+    screen.Fill(color.Black)
+    for i:=0;i<3;i++{
+        for j:=0;j<3;j++{
+            x := j*cellSize
+            y := i*cellSize
+            ebitenutil.DrawRect(screen, float64(x), float64(y), cellSize-1, cellSize-1, color.RGBA{80,80,80,255})
+            if g.board[i][j] == "X" {
+                ebitenutil.DebugPrintAt(screen, "X", x+45, y+55)
+            } else if g.board[i][j] == "O" {
+                ebitenutil.DebugPrintAt(screen, "O", x+45, y+55)
+            }
+        }
+    }
+    ebitenutil.DebugPrintAt(screen, formatText("Score X: "+itoa(g.scoreX)), 10, 310)
+    ebitenutil.DebugPrintAt(screen, formatText("Score O: "+itoa(g.scoreO)), 10, 330)
+    ebitenutil.DebugPrintAt(screen, formatText("Draw: "+itoa(g.scoreDraw)), 10, 350)
+    if g.gameOver {
+        msg := "GAME OVER"
+        if g.winner != "draw" {
+            msg = g.winner + " wins!"
+        } else {
+            msg = "Draw!"
+        }
+        ebitenutil.DebugPrintAt(screen, msg, screenW/2-50, screenH-20)
+    }
+}
+
+func formatText(s string) string { return s }
+func itoa(n int) string { return string(rune(n+'0')) }
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) { return screenW, screenH }
+
+func main() {
+    ebiten.SetWindowSize(screenW, screenH)
+    ebiten.SetWindowTitle("Tic-Tac-Toe - Go")
+    if err := ebiten.RunGame(NewGame()); err != nil {
+        log.Fatal(err)
+    }
+}
